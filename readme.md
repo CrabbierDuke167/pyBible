@@ -32,7 +32,7 @@ AI GENERATED MD FILE !!!
 
 ```text
 pybible/
-├── app.py              # Main Flask server & API endpoints
+├── bible.py              # Main Flask server & API endpoints
 ├── bibleDb.csv         # Local CSV DB
 ├── requirements.txt    # Python dependencies
 ├── static/
