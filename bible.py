@@ -19,11 +19,22 @@ url = "https://labs.bible.org/api/?passage=random&type=json"
 # Verse fetcher
 
 def getRandomVerse():
-    response = requests.get(url)
-    raw_data = response.json()
-    verse_list = [raw_data[0]['text'], raw_data[0]['bookname'], raw_data[0]['chapter'], raw_data[0]['verse']]
-    verse_str = " ".join([raw_data[0]['text'], "\n"+raw_data[0]['bookname'], raw_data[0]['chapter'], ':', raw_data[0]['verse']])
-    return (verse_list, verse_str)
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        raw_data = response.json()
+        
+        text = str(raw_data[0]['text'])
+        bookname = str(raw_data[0]['bookname'])
+        chapter = str(raw_data[0]['chapter'])
+        verse = str(raw_data[0]['verse'])
+
+        verse_list = [text, bookname, chapter, verse]
+        verse_str = f"{text}\n{bookname} {chapter}:{verse}"
+        return verse_list, verse_str
+    except Exception as e:
+        print("An error occurred fetching verse:", e)
+        return None, None
 
 # DB maker
 
@@ -111,11 +122,13 @@ def home():
 @app.route('/api/random', methods=['GET'])
 def api_random():
     verse_list, verse_str = getRandomVerse()
+    if verse_list is None:
+        return jsonify({"status": "error", "message": "Failed to fetch verse from API"}), 500
     return jsonify({"verse_list": verse_list, "verse_str": verse_str})
 
 @app.route('/api/save', methods=['POST'])
 def api_save():
-    data = request.json
+    data = request.json or {}
     verse_list = data.get('verse_list')
     if verse_list:
         status = writeToDB(verse_list)
@@ -129,7 +142,7 @@ def api_save():
 
 @app.route('/api/search', methods=['POST'])
 def api_search():
-    data = request.json
+    data = request.json or {}
     query = data.get('query', '')
     result = searchFromDB(query)
     return jsonify({"result": result})
