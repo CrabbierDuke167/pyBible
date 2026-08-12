@@ -31,7 +31,7 @@ AI GENERATED MD FILE !!!
 ## 📂 Project Structure
 
 ```text
-pybible/
+pyBible/
 ├── bible.py              # Main Flask server & API endpoints
 ├── bibleDb.csv         # Local CSV DB
 ├── requirements.txt    # Python dependencies
