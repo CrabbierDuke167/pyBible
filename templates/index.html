@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>pyBible</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' fill='%23000000' viewBox='0 0 256 256'><path d='M213.66,82.34l-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40v72a8,8,0,0,0,16,0V40h88V88a8,8,0,0,0,8,8h48V216H168a8,8,0,0,0,0,16h32a16,16,0,0,0,16-16V88A8,8,0,0,0,213.66,82.34ZM160,51.31,188.69,80H160ZM64,144H48a8,8,0,0,0-8,8v56a8,8,0,0,0,16,0v-8h8a28,28,0,0,0,0-56Zm0,40H56V160h8a12,12,0,0,1,0,24Zm90.78-27.76-18.78,30V208a8,8,0,0,1-16,0V186.29l-18.78-30a8,8,0,1,1,13.56-8.48L128,168.91l13.22-21.15a8,8,0,1,1,13.56,8.48Z'></path></svg>">
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <h1>pyBible ♰</h1>
+      <span class="version">v1.0.0</span>
+    </header>
+
+    <div class="card">
+      <h2>Random Verse</h2>
+      <div id="verseText" class="verse-text">Loading...</div>
+      <div id="verseRef" class="verse-ref"></div>
+
+      <div class="actions">
+        <button class="btn-yellow" onclick="fetchVerse()">Next Verse</button>
+        <button class="btn-blue" onclick="saveVerse()">Save to DB</button>
+      </div>
+      <div id="toast" class="toast"></div>
+    </div>
+
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h2 style="margin-bottom: 0;">Search Database</h2>
+        <button class="clear-btn" onclick="clearDB()" style="padding: 4px 10px; font-size: 0.75rem; background-color: #ff3c3c; color: #ffffff;">Clear DB</button>
+      </div>
+      <div class="search-bar">
+        <input type="text" id="searchInput" placeholder="Search book, verse, or text..." onkeydown="if(event.key==='Enter') searchDB()">
+        <button class="search-btn" onclick="searchDB()">Search</button>
+      </div>
+      <div id="searchResults" class="results">Search results will display here.</div>
+    </div>
+    <footer>
+        <p>© 2026 pyBible</p>
+        <div>
+            <a href="https://github.com/CrabbierDuke167/pyBible/" target="_blank" rel="noopener noreferrer" title="GitHub">
+            <i class="ph ph-github-logo"></i>
+            </a>
+            <a href="https://discord.com/users/1179971106531188927" target="_blank" rel="noopener noreferrer" title="Discord">
+            <i class="ph ph-discord-logo"></i>
+            </a>
+            <a href="https://code.visualstudio.com/" target="_blank" rel="noopener noreferrer" title="VS Code">
+            <i class="ph ph-code"></i>
+            </a>
+        </div>
+    </footer>
+  </div>
+
+  <script>
+    let currentVerseList = null;
+    let toastTimeout = null;
+
+    function resetSearchUI() {
+      document.getElementById('searchInput').value = '';
+      document.getElementById('searchResults').innerText = 'Search results will display here.';
+    }
+
+    async function fetchVerse() {
+      hideToast();
+      resetSearchUI();
+      const textElem = document.getElementById('verseText');
+      const refElem = document.getElementById('verseRef');
+      
+      textElem.innerText = "Fetching...";
+      refElem.innerText = "";
+
+      try {
+        const res = await fetch('/api/random');
+        const data = await res.json();
+        
+        currentVerseList = data.verse_list;
+        textElem.innerText = `"${data.verse_list[0]}"`;
+        refElem.innerText = `${data.verse_list[1]} ${data.verse_list[2]}:${data.verse_list[3]}`;
+      } catch (err) {
+        textElem.innerText = "Failed to load verse from API.";
+      }
+    }
+
+    async function saveVerse() {
+      if (!currentVerseList) return;
+
+      resetSearchUI();
+      showToast("Saving...", "info");
+
+      try {
+        const res = await fetch('/api/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ verse_list: currentVerseList })
+        });
+        const data = await res.json();
+
+        if (data.status === 'success') {
+          showToast(data.message, "success");
+        } else if (data.status === 'exists') {
+          showToast(data.message, "warning");
+        } else {
+          showToast(data.message || "Error saving verse", "error");
+        }
+      } catch (err) {
+        showToast("Server communication failed", "error");
+      }
+    }
+
+    async function searchDB() {
+      const queryInput = document.getElementById('searchInput');
+      const resultsElem = document.getElementById('searchResults');
+      const query = queryInput.value.trim();
+
+      if (!query) return;
+
+      resultsElem.innerText = "Searching...";
+
+      try {
+        const res = await fetch('/api/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: query })
+        });
+        const data = await res.json();
+        resultsElem.innerText = data.result;
+      } catch (err) {
+        resultsElem.innerText = "Search request failed.";
+      }
+    }
+
+    async function clearDB() {
+      if (!confirm("Are you sure you want to clear the entire CSV database?")) return;
+
+      try {
+        const res = await fetch('/api/clear', { method: 'POST' });
+        const data = await res.json();
+        resetSearchUI();
+        showToast(data.message || "Database cleared", "error");
+      } catch (err) {
+        showToast("Failed to clear database", "error");
+      }
+    }
+
+    function showToast(msg, state) {
+      clearTimeout(toastTimeout);
+      const toast = document.getElementById('toast');
+      toast.innerText = msg;
+      toast.style.display = 'block';
+
+      if (state === 'success') {
+        toast.style.backgroundColor = '#4caf50';
+        toast.style.color = '#111111';
+      } else if (state === 'warning') {
+        toast.style.backgroundColor = '#ffd900';
+        toast.style.color = '#111111';
+      } else if (state === 'error') {
+        toast.style.backgroundColor = '#ff3c3c';
+        toast.style.color = '#ffffff';
+      } else {
+        toast.style.backgroundColor = '#ffffff';
+        toast.style.color = '#111111';
+      }
+
+      toastTimeout = setTimeout(hideToast, 1000);
+    }
+
+    function hideToast() {
+      const toast = document.getElementById('toast');
+      toast.style.display = 'none';
+    }
+
+    // Load initial verse
+    fetchVerse();
+  </script>
+</body>
+</html>
